@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# Wait for ZeroTier Interface to go UP
+sleep 30
+
+# allow routing
+sysctl -w net.ipv4.ip_forward=1
+PHY_IFACE="ens18"
+ZT_IFACE=$(ip -o -brief address | grep -oP 'zt\S*')
+PHY_SUBNET=$(ip -o -brief address | grep "ens18" | awk '{print $3}' | sed -E 's/([0-9]+\.[0-9]+\.[0-9]+)\.[0-9]+(\/[0-9]+)/\1.0\2/')
+ZT_SUBNET=$(ip -o -brief address | grep "zt" | awk '{print $3}' | sed -E 's/([0-9]+\.[0-9]+\.[0-9]+)\.[0-9]+(\/[0-9]+)/\1.0\2/')
+
+iptables -F
+iptables -X
+iptables -P INPUT ACCEPT
+iptables -P FORWARD DROP
+iptables -P OUTPUT ACCEPT
+iptables -A FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT
+iptables -t nat -A POSTROUTING -s $ZT_SUBNET -o $PHY_IFACE -m comment --comment zerotier-nat-rule -j MASQUERADE
+iptables -A FORWARD -i $ZT_IFACE -s $ZT_SUBNET -o $PHY_IFACE -d $PHY_SUBNET -j ACCEPT
